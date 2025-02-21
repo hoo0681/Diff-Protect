@@ -24,15 +24,21 @@ import wandb
 import glob
 import hydra
 from utils import mp, si, cprint
-
-
+import json
+import random
 
 ssl._create_default_https_context = ssl._create_unverified_context
 os.environ['TORCH_HOME'] = os.getcwd()
 os.environ['HF_HOME'] = os.path.join(os.getcwd(), 'hub/')
 # device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-
+def setup_seed(seed=1234):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def load_image_from_path(image_path: str, input_size: int) -> PIL.Image.Image:
@@ -341,13 +347,7 @@ def infer(img: PIL.Image.Image, config, tar_img: PIL.Image.Image = None, diff_pg
 def main(cfg : DictConfig):
     print(cfg.attack)
     time_start = time.time()
-    
     args = cfg.attack
-    
-    
-    
-    
-    
     epsilon = args.epsilon
     steps = args.steps
     input_size = args.input_size
@@ -355,91 +355,54 @@ def main(cfg : DictConfig):
     alpha = args.alpha
     rate = args.target_rate if not mode == 'mist' else 1e4
     g_mode = args.g_mode
-    output_path, img_path = args.output_path, args.img_path
+    output_path, data_path = args.output_path, args.data_path
     diff_pgd = args.diff_pgd
     using_target = args.using_target
     device=args.device
-    
-    
-    if using_target and mode == 'sds':
-        mode_name = f'{mode}T{rate}'
-    else:
-        mode_name = mode
-
-    output_path = output_path + f'/{mode_name}_eps{epsilon}_steps{steps}_gmode{g_mode}'
-    if diff_pgd[0]:
-        output_path = output_path + '_diffpgd/'
-    else:
-        output_path += '/'
-    
-    mp(output_path)
+    exp_output=args.exp_name
+    edit_category_list=[f"{i}" for i in range(10)]# [0,1,2,3,4,5,6,7,8,9]
+    rerun_exist_images=False
     
     input_prompt = 'a photo'
-    if 'anime' in img_path:
-        input_prompt = 'an anime picture'
-    elif 'artwork' in img_path:
-        input_prompt = 'an artwork painting'
-    elif 'landscape' in img_path:
-        input_prompt = 'a landscape photo'
-    elif 'portrait' in img_path:
-        input_prompt = 'a portrait photo'
-    else:
-        input_prompt = 'a photo'
-        
-    
-    
-    
     config = init(epsilon=epsilon, alpha=alpha, steps=steps, 
                   mode=mode, rate=rate, g_mode=g_mode, device=device, 
                   input_prompt=input_prompt)
+    
+    if exp_output!="":
+        output_path=os.path.join(output_path,'attack_test')    
+    
+    with open(f"{data_path}/mapping_file.json", "r") as f:
+        editing_instruction = json.load(f)
+    target_image_path = 'test_images/target/MIST.png'
+    tar_img = load_image_from_path(target_image_path, input_size)
+    # print(editing_instruction)
+    for key,item in editing_instruction.items():
+        if item["editing_type_id"] not in edit_category_list:
+            continue
+        image_path = os.path.join(f"{data_path}/annotation_images", item["image_path"])
+        item["image_path"]=item["image_path"].replace('.jpg','.png')
+        present_image_save_path=image_path.replace(data_path, os.path.join(output_path,exp_output)).replace(".jpg",".png")
+        print(present_image_save_path)
+        if ((not os.path.exists(present_image_save_path)) or rerun_exist_images):
+            print(f"editing image [{image_path}] with [{g_mode}]")
+            setup_seed()
+            torch.cuda.empty_cache()
+            attack_time_start=time.time()
+            img = load_image_from_path(image_path, input_size)
+            bls = input_size//1
+            config['parameters']["input_size"] = bls
+            output_image = np.zeros([input_size, input_size, 3])
+            for i in tqdm(range(1)):
+                for j in tqdm(range(1)):
+                    img_block = Image.fromarray(np.array(img)[bls*i: bls*i+bls, bls*j: bls*j + bls])
+                    tar_block = Image.fromarray(np.array(tar_img)[bls*i: bls*i+bls, bls*j: bls*j + bls])
+                    output_image[bls*i: bls*i+bls, bls*j: bls*j + bls], edit_one_step, edit_multi_step = infer(img_block, config, tar_block, diff_pgd=diff_pgd, using_target=using_target, device=device)
+            if not os.path.exists(os.path.dirname(present_image_save_path)):
+                os.makedirs(os.path.dirname(present_image_save_path))
+            output = Image.fromarray(output_image.astype(np.uint8))
+            output.save(present_image_save_path)
+            print('attack takes: ', time.time() - attack_time_start)
 
-    
-    img_paths = glob.glob(img_path+'/*.png') + glob.glob(img_path+'/*.jpg') + glob.glob(img_path+'/*.jpeg')
-    
-    # img_paths.sort(key=lambda x: int(x[x.rfind('/')+1:x.rfind('.')]))
-    
-    img_path = img_path[:args.max_exp_num]
-    
-    for image_path in tqdm(img_paths):
-        cprint(f'Processing: [{image_path}]', 'y')
-        
-        rsplit_image_path = image_path.rsplit('/')
-        file_name = f"/{rsplit_image_path[-2]}/{rsplit_image_path[-1]}/"
-        file_name = file_name.rsplit('.')[0]
-        mp(output_path + file_name)
-        
-        
-        target_image_path = 'test_images/target/MIST.png'
-        img = load_image_from_path(image_path, input_size)
-        tar_img = load_image_from_path(target_image_path, input_size)
-
-        
-        bls = input_size//1
-        config['parameters']["input_size"] = bls
-
-        output_image = np.zeros([input_size, input_size, 3])
-        
-        
-        for i in tqdm(range(1)):
-            for j in tqdm(range(1)):
-                img_block = Image.fromarray(np.array(img)[bls*i: bls*i+bls, bls*j: bls*j + bls])
-                tar_block = Image.fromarray(np.array(tar_img)[bls*i: bls*i+bls, bls*j: bls*j + bls])
-                output_image[bls*i: bls*i+bls, bls*j: bls*j + bls], edit_one_step, edit_multi_step = infer(img_block, config, tar_block, diff_pgd=diff_pgd, using_target=using_target, device=device)
-        
-        output = Image.fromarray(output_image.astype(np.uint8))
-        
-        time_start_sdedit = time.time()
-        si(edit_one_step, output_path + f'{file_name}_onestep.png')
-        si(edit_multi_step, output_path + f'{file_name}_multistep.png')
-        print('SDEdit takes: ', time.time() - time_start_sdedit)
-        
-        
-        output_name = output_path + f'/{file_name}_attacked.png'
-        
-        output.save(output_name)
-        
-        
-        print('TIME CMD=', time.time() - time_start)
 
 
 if __name__ == '__main__':

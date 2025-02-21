@@ -1,0 +1,17 @@
+attack:
+    exp_name: SDS_noise_budget_1
+    epsilon: 0.1
+    steps: 100
+    input_size: 512
+    mode: sds
+    data_path: /media/NAS/DATASET/PIE_BENCH/PIE-Bench_v1
+    output_path: /media/NAS/DATASET/PIE_BENCH/PIE-Bench_adv
+    alpha: 1
+    g_mode: "-"
+    use_wandb: False
+    project_name: iclr_mist
+    diff_pgd: [False, 0.2, 'ddim100'] # un-used feature
+    using_target: False
+    target_rate: 5
+    device: 0
+    max_exp_num: 100

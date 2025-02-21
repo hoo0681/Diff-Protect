@@ -107,6 +107,19 @@ SDST(-):
 python code/diff_mist.py attack.mode='sds' attack.g_mode='-' attack.using_target=True
 ```
 
+DIA:
+```
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=Mist_noise_budget_025 attack.device=0
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=Mist_noise_budget_05 attack.device=1
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=Mist_noise_budget_075 attack.device=2
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=Mist_noise_budget_1 attack.device=3
+
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=SDS_noise_budget_025 attack.device=4
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=SDS_noise_budget_05 attack.device=5
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=SDS_noise_budget_075 attack.device=6
+python code/diff_mist_dir_structure.py --config-path=../configs/attack --config-name=SDS_noise_budget_1 attack.device=7
+```
+
 the output includes: `[NAME]_attacked.png` which is the attacked image, `[NAME]_multistep.png` which is the SDEdit results, and `[NAME]_onestep.png` which is the onestep x_0 prediction results.
 
 
