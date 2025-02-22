@@ -360,7 +360,7 @@ def main(cfg : DictConfig):
     using_target = args.using_target
     device=args.device
     exp_output=args.exp_name
-    edit_category_list=[f"{i}" for i in range(10)]# [0,1,2,3,4,5,6,7,8,9]
+    edit_category_list=['5','6','7','8','9']#[f"{i}" for i in range(10)]# [0,1,2,3,4,5,6,7,8,9]
     rerun_exist_images=False
     
     input_prompt = 'a photo'
